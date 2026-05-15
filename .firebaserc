@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "ai-areta",
+    "asm": "aretasportmanagement"
+  },
+  "targets": {},
+  "etags": {}
+}

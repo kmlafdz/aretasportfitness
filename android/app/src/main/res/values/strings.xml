@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Areta Fitness</string>
+    <string name="title_activity_main">Areta Fitness</string>
+    <string name="package_name">com.areta.sport</string>
+    <string name="custom_url_scheme">com.areta.sport</string>
+</resources>
