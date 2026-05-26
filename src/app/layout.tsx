@@ -4,6 +4,7 @@ import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import { QRScannerFAB } from "@/components/QRScannerFAB";
+import { AdminChatFAB } from "@/components/AdminChatFAB";
 import { NotificationProvider } from "@/components/NotificationProvider";
 import { useUIStore } from "@/store/useUIStore";
 import { useEffect, useState } from "react";
@@ -45,6 +46,7 @@ export default function RootLayout({
           <NotificationProvider>
             {children}
             <QRScannerFAB />
+            <AdminChatFAB />
             <Toaster 
               theme={mounted ? (theme as any) : "dark"} 
               position="top-right" 

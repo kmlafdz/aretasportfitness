@@ -14,7 +14,7 @@ export function useFcm() {
     const setupFcm = async () => {
       try {
         // Only request token if on web or supported environment
-        if (!Capacitor.isNativePlatform()) {
+        if (!Capacitor.isNativePlatform() && messaging) {
           const token = await getToken(messaging, {
             vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
           });

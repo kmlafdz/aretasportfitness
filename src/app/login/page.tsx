@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Eye, EyeOff, Check, LayoutDashboard, Settings, ArrowRight, ShieldCheck } from "lucide-react";
+import { Loader2, Eye, EyeOff, Check, LayoutDashboard, Settings, ArrowRight, ShieldCheck, X } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut, sendEmailVerification } from "firebase/auth";
 import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { SuccessModal } from "@/components/ui/success-modal";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +19,39 @@ export default function LoginPage() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [unverifiedUser, setUnverifiedUser] = useState<any>(null);
+
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [successModal, setSuccessModal] = useState({ isOpen: false, title: "", message: "" });
+
+  const handleOpenResetModal = () => {
+    if (loginId.includes("@")) {
+      setResetEmail(loginId);
+    } else {
+      setResetEmail("");
+    }
+    setIsResetModalOpen(true);
+  };
+
+  const handleSendResetEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    setIsSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setIsResetModalOpen(false);
+      setSuccessModal({
+        isOpen: true,
+        title: "Link Reset Terkirim",
+        message: "Link reset password telah dikirim ke email Anda! Silakan periksa folder INBOX dan SPAM email Anda."
+      });
+    } catch (error: any) {
+      alert("Gagal mengirim link reset password: " + error.message);
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,7 +211,7 @@ export default function LoginPage() {
             className="flex items-center gap-4"
           >
             <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[1.25rem] p-2 shadow-2xl flex items-center justify-center w-16 h-16 overflow-hidden">
-              <img src="/logo.png?v=4" alt="Areta" className="w-full h-full object-contain" />
+              <img src="/logo.png" alt="Areta" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-xl font-black text-white tracking-[0.2em] leading-none uppercase">Areta Sport</h1>
@@ -265,7 +299,7 @@ export default function LoginPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between items-center ml-1">
                         <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase">Secret Key</label>
-                        <button type="button" className="text-[10px] font-black text-[#FF5A2C] uppercase tracking-widest hover:underline">Reset</button>
+                        <button type="button" onClick={handleOpenResetModal} className="text-[10px] font-black text-[#FF5A2C] uppercase tracking-widest hover:underline">Reset</button>
                       </div>
                       <div className="relative">
                         <input
@@ -321,6 +355,71 @@ export default function LoginPage() {
           </motion.div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isResetModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#0d0d0d] border border-white/10 rounded-[2.5rem] p-10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.7)] relative overflow-hidden"
+            >
+              {/* Glow effect */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#FF5A2C]/10 blur-[60px] rounded-full" />
+              
+              <div className="relative z-10 space-y-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] font-black text-[#FF5A2C] tracking-[0.3em] uppercase mb-2">Reset Password</p>
+                    <h3 className="text-2xl font-black text-white uppercase heading-font tracking-tight">Lupa Password</h3>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsResetModalOpen(false)} 
+                    className="text-gray-500 hover:text-white transition-colors p-2"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                
+                <p className="text-gray-400 text-xs font-bold leading-relaxed">
+                  Masukkan email Anda di bawah ini. Kami akan mengirimkan tautan untuk menyetel ulang kata sandi Anda.
+                </p>
+
+                <form onSubmit={handleSendResetEmail} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase ml-1">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="w-full h-16 bg-white/[0.05] border border-white/10 focus:border-[#FF5A2C]/50 rounded-[1.25rem] px-8 text-sm font-bold text-white placeholder:text-gray-600 focus:outline-none transition-all shadow-xl"
+                      placeholder="name@email.com"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSendingReset}
+                    className="w-full h-16 bg-[#FF5A2C] hover:bg-[#E04E25] text-white rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {isSendingReset ? <Loader2 className="h-5 w-5 animate-spin" /> : "Kirim Link Reset"}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <SuccessModal 
+        isOpen={successModal.isOpen}
+        onClose={() => setSuccessModal({ ...successModal, isOpen: false })}
+        title={successModal.title}
+        message={successModal.message}
+      />
 
     </div>
   );

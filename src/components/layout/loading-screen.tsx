@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 
 export function LoadingScreen() {
   const [progress, setProgress] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const timer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -75,7 +77,7 @@ export function LoadingScreen() {
               }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             >
-              <img src="/logo.png?v=4" alt="Areta Logo" className="h-24 w-24 object-contain rounded-[2rem]" />
+              <img src="/logo.png" alt="Areta Logo" className="h-24 w-24 object-contain rounded-[2rem]" />
             </motion.div>
           </motion.div>
         </div>
@@ -113,20 +115,15 @@ export function LoadingScreen() {
       </div>
 
       {/* FOOTER BRANDING */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1, duration: 0.8 }}
-        className="absolute bottom-12"
-      >
-        <div className="bg-white/[0.03] border border-white/10 backdrop-blur-xl px-8 py-3 rounded-full shadow-2xl">
+      {isMounted && (
+        <div className="absolute bottom-12">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-4">
-            <span className="text-white/40">Application Version 1.2.0</span>
+            <span className="text-white/40">V 2.0</span>
             <span className="h-3 w-[1px] bg-white/10" />
             <span>© 2026 SynTriad Team</span>
           </p>
         </div>
-      </motion.div>
+      )}
     </motion.div>
   );
 }

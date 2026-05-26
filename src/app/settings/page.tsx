@@ -411,6 +411,19 @@ export default function SettingsPage() {
                       <ArrowUpRight className="h-4 w-4 text-gray-700 group-hover:text-foreground transition-all" />
                     </button>
 
+                    <button 
+                      onClick={() => router.push("/credits")}
+                      className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                          <User className="h-4 w-4 text-teal-500" />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest">{language === 'id' ? "Pengembang Aplikasi" : "App Credits"}</p>
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 text-gray-700 group-hover:text-foreground transition-all" />
+                    </button>
+
                     <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">

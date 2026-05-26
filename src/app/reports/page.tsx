@@ -5,12 +5,19 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { FileText, TrendingUp, Users, DollarSign, Activity, Download, ArrowUpRight } from "lucide-react";
+import { FileText, TrendingUp, Users, DollarSign, Activity, Download, ArrowUpRight, Loader2 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { translations } from "@/lib/translations";
+import { cn } from "@/lib/utils";
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
+import { useNotifications } from "@/hooks/useNotifications";
 
 export default function ReportsPage() {
   const { language } = useLanguageStore();
@@ -19,6 +26,12 @@ export default function ReportsPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [checkins, setCheckins] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { sendNotification } = useNotifications();
+  const [isExporting, setIsExporting] = useState(false);
+  const [reportFilter, setReportFilter] = useState<'all' | 'month'>('all');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
+
+
 
   useEffect(() => {
     const qTrans = query(collection(db, "transactions"), orderBy("created_at", "desc"));
@@ -40,7 +53,15 @@ export default function ReportsPage() {
     return () => { unsubTrans(); unsubMembers(); unsubCheckins(); };
   }, []);
 
-  const totalRevenue = transactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const filteredTransactions = transactions.filter(t => {
+    if (reportFilter === 'all') return true;
+    if (!t.created_at) return false;
+    const date = t.created_at.toDate ? t.created_at.toDate() : new Date(t.created_at);
+    const monthStr = date.toISOString().substring(0, 7);
+    return monthStr === selectedMonth;
+  });
+
+  const totalRevenue = filteredTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const activeMembers = members.filter(m => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -74,8 +95,118 @@ export default function ReportsPage() {
 
   const formatCurrency = (amt: number) => "Rp " + amt.toLocaleString('id-ID');
 
+  const handleExportPdf = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      window.print();
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // 1. Header & Branding
+      doc.setFillColor(10, 12, 20); // Dark background
+      doc.rect(0, 0, pageWidth, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("ARETA SPORT", 20, 20);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text("PREMIUM FITNESS MANAGEMENT", 20, 28);
+      
+      const filterText = reportFilter === 'all' 
+        ? (language === 'id' ? "SEMUA LAPORAN" : "ALL REPORTS")
+        : (language === 'id' ? `LAPORAN ${selectedMonth}` : `REPORT ${selectedMonth}`);
+
+      doc.setFontSize(14);
+      doc.setTextColor(255, 255, 255);
+      doc.text(filterText, pageWidth - 20, 20, { align: "right" });
+      
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 20, 28, { align: "right" });
+
+      // 2. Statistics Grid
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      
+      const stats = [
+        { label: t.totalRevenue, value: formatCurrency(totalRevenue) },
+        { label: t.activeMembers, value: activeMembers.toString() },
+        { label: "Transactions", value: filteredTransactions.length.toString() },
+        { label: "Today Check-ins", value: todayCheckins.toString() }
+      ];
+
+      let startX = 20;
+      stats.forEach((stat, i) => {
+        doc.setFillColor(245, 245, 245);
+        doc.roundedRect(startX, 50, 40, 20, 3, 3, 'F');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.text(stat.label.toUpperCase(), startX + 5, 58);
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text(stat.value, startX + 5, 65);
+        startX += 45;
+      });
+
+      // 3. Revenue Trends Chart (Image from canvas)
+      const chartEl = document.querySelector('.recharts-wrapper');
+      if (chartEl) {
+        const canvas = await html2canvas(chartEl as HTMLElement, { scale: 2, backgroundColor: '#ffffff' });
+        const chartData = canvas.toDataURL('image/png');
+        doc.setFontSize(10);
+        doc.text(t.revenueTrends.toUpperCase(), 20, 85);
+        doc.addImage(chartData, 'PNG', 20, 90, pageWidth - 40, 60);
+      }
+
+      // 4. Ledger Table (Real Text)
+      doc.setFontSize(10);
+      doc.text(t.recentLedger.toUpperCase(), 20, 165);
+      
+      const tableData = filteredTransactions.slice(0, 15).map(t_item => [
+        t_item.date,
+        t_item.member.toUpperCase(),
+        t_item.type.toUpperCase(),
+        formatCurrency(Number(t_item.amount) || 0)
+      ]);
+
+      autoTable(doc, {
+        startY: 170,
+        head: [['DATE', 'MEMBER', 'TYPE', 'AMOUNT']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [255, 90, 44], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: { 3: { halign: 'right', fontStyle: 'bold', textColor: [0, 150, 136] } }
+      });
+
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const fileName = `Areta_Report_${reportFilter === 'all' ? 'All' : selectedMonth}_${new Date().getTime()}.pdf`;
+
+      await Filesystem.writeFile({
+        path: fileName,
+        data: pdfBase64,
+        directory: Directory.Documents,
+      });
+
+      sendNotification("Success", { body: `File Laporan ${fileName} berhasil disimpan di direktori Dokumen` });
+    } catch (error) {
+      console.error("PDF Export Error:", error);
+      sendNotification("Error", { body: "Failed to export PDF" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen print:block">
+    <div className="flex min-h-screen print:block" id="report-printable-area">
       <div className="print:hidden">
         <Sidebar />
       </div>
@@ -94,12 +225,46 @@ export default function ReportsPage() {
               <h1 className="text-4xl sm:text-5xl font-black text-foreground tracking-tighter heading-font uppercase">{language === 'id' ? "ANALITIK" : "ANALYTICS"}</h1>
               <p className="text-[10px] font-bold text-gray-500 tracking-[0.2em] uppercase">{language === 'id' ? "METRIK PERFORMA & LAPORAN" : "PERFORMANCE METRICS & REPORTS"}</p>
             </div>
-            <button 
-              onClick={() => window.print()}
-              className="bg-gradient-to-br from-[#FF5A2C] to-red-600 hover:brightness-110 text-white rounded-2xl px-8 py-6 font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-orange-500/20 active:scale-95 flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" /> {t.exportPdf}
-            </button>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
+                <button 
+                  onClick={() => setReportFilter('all')}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                    reportFilter === 'all' ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "text-gray-500 hover:text-white"
+                  )}
+                >
+                  {language === 'id' ? "Semua" : "All"}
+                </button>
+                <button 
+                  onClick={() => setReportFilter('month')}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                    reportFilter === 'month' ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "text-gray-500 hover:text-white"
+                  )}
+                >
+                  {language === 'id' ? "Bulan" : "Month"}
+                </button>
+              </div>
+
+              {reportFilter === 'month' && (
+                <input 
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-white/5 border border-white/5 rounded-2xl px-4 py-3 text-[10px] font-black text-white uppercase outline-none focus:border-orange-500/50 transition-all"
+                />
+              )}
+
+              <button 
+                onClick={handleExportPdf}
+                disabled={isExporting}
+                className="bg-gradient-to-br from-[#FF5A2C] to-red-600 hover:brightness-110 text-white rounded-2xl px-8 py-6 font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-orange-500/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+              >
+                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {isExporting ? (language === 'id' ? "MEMPROSES..." : "PROCESSING...") : t.exportPdf}
+              </button>
+            </div>
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

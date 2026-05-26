@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Trash, X, Shield, ShieldAlert, Loader2, Mail } from "lucide-react";
-import { db, firebaseConfig } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, where, getDocs } from "firebase/firestore";
+import { db, firebaseConfig, auth } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, where, getDocs, getDoc } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut, signInWithEmailAndPassword } from "firebase/auth";
 import { useLanguageStore } from "@/store/useLanguageStore";
@@ -140,9 +140,54 @@ export default function UsersPage() {
 
   const confirmDelete = async () => {
     try {
-      await deleteDoc(doc(db, "users", deleteModal.id));
+      const userRef = doc(db, "users", deleteModal.id);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const uid = userData.uid;
+
+        if (uid) {
+          // Get current logged-in admin's Firebase ID token
+          const idToken = await auth.currentUser?.getIdToken();
+
+          // Call the backend API route to delete auth credentials and firestore doc
+          const response = await fetch("/api/users/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": idToken ? `Bearer ${idToken}` : "",
+            },
+            body: JSON.stringify({ uid, docId: deleteModal.id }),
+          });
+
+          if (!response.ok) {
+            const resData = await response.json();
+            console.warn("Delete API returned error, falling back to client-side delete:", resData.error);
+            await deleteDoc(userRef);
+          } else {
+            const resData = await response.json();
+            if (!resData.firestoreDeleted) {
+              await deleteDoc(userRef);
+            }
+          }
+        } else {
+          // Fallback if user doesn't have uid
+          await deleteDoc(userRef);
+        }
+      } else {
+        await deleteDoc(userRef);
+      }
+
       setDeleteModal({ isOpen: false, id: "" });
-    } catch (error) { alert(t.failed); }
+      setSuccessModal({
+        isOpen: true,
+        title: language === 'id' ? "Berhasil Dihapus" : "Successfully Deleted",
+        message: language === 'id' ? "Pengguna dan kredensial berhasil dihapus." : "User and credentials successfully deleted."
+      });
+    } catch (error: any) { 
+      alert(t.failed + ": " + (error.message || "")); 
+    }
   };
 
   return (

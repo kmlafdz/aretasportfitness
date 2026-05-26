@@ -263,18 +263,17 @@ export function Header() {
               )}
             </AnimatePresence>
           </div>
-
-          <DeleteConfirmModal 
-            isOpen={logoutModalOpen}
-            onClose={() => setLogoutModalOpen(false)}
-            onConfirm={handleLogout}
-            title="Logout"
-            message={language === 'id' ? "Apakah Anda yakin ingin keluar?" : "Are you sure you want to logout?"}
-            confirmText={language === 'id' ? "Ya, Keluar" : "Yes, Logout"}
-          />
         </div>
       </header>
 
+      <DeleteConfirmModal 
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        title="Logout"
+        message={language === 'id' ? "Apakah Anda yakin ingin keluar?" : "Are you sure you want to logout?"}
+        confirmText={language === 'id' ? "Ya, Keluar" : "Yes, Logout"}
+      />
     </>
   );
 }

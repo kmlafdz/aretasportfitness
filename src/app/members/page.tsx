@@ -20,15 +20,19 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { translations } from "@/lib/translations";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { SuccessModal } from "@/components/ui/success-modal";
+import { useSearchParams } from "next/navigation";
 
 export default function MembersPage() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get('search') || "";
+  
   const { language } = useLanguageStore();
   const t = translations[language];
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { sendNotification, sendPushNotification } = useNotifications();
   
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -69,7 +73,7 @@ export default function MembersPage() {
 
   const formatCurrency = (amt: number) => "Rp " + amt.toLocaleString('id-ID');
 
-  const getDynamicStatus = (expDate: string) => {
+  const getDynamicStatus = (expDate: string | Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const exp = new Date(expDate);
@@ -189,7 +193,7 @@ export default function MembersPage() {
         created_at: serverTimestamp(),
       });
 
-      setSelectedMember({ ...selectedMember, tanggal_expired: newExp.toISOString().split('T')[0] });
+      setSelectedMember({ ...selectedMember, tanggal_expired: newExp });
       setSuccessModal({ 
         isOpen: true, 
         title: language === 'id' ? "Berhasil" : "Success", 
